@@ -1,39 +1,71 @@
-import pyaudio
+import speech_recognition as sr
+from functions.online_ops import play_on_youtube, search_on_google, search_on_wikipedia
+from decouple import config
+import pyttsx3
+from utils import opening_text
+from datetime import datetime
+from random import choice
 
-p = pyaudio.PyAudio()
-info = p.get_host_api_info_by_index(0)
-numdevices = info.get('deviceCount')
+# print list of devices
+for index, name in enumerate(sr.Microphone.list_microphone_names()):
+    print("Microphone with name \"{1}\" found for `Microphone(device_index={0})`".format(index, name))
 
-for i in range(0, numdevices):
-    if (p.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:
-        print("Input Device id ", i, " - ", p.get_device_info_by_host_api_device_index(0, i).get('name'))
 
-def capture_audio(device_index, sample_rate=44100, chunk_size=1024, record_seconds=5, output_filename="output.wav"):
-    p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paInt16,
-                    channels=1,
-                    rate=sample_rate,
-                    input=True,
-                    input_device_index=device_index,
-                    frames_per_buffer=chunk_size)
 
-    print("Recording...")
-    frames = []
-    for _ in range(0, int(sample_rate / chunk_size * record_seconds)):
-        data = stream.read(chunk_size)
-        frames.append(data)
 
-    print("Finished recording.")
+USERNAME = config('USER')
+BOTNAME = config('BOTNAME')
+
+engine = pyttsx3.init('nsss')
+# Set Rate
+engine.setProperty('rate', 180)
+
+# Set Volume
+engine.setProperty('volume', 1.0)
+
+# Set Voice (Female)
+voices = engine.getProperty('voices')
+engine.setProperty('voice', voices[1].id)
+
+# Text to Speech Conversion
+def speak(text):
+    """Used to speak whatever text is passed to it"""
+
+    engine.say(text)
+    engine.runAndWait()
+
+# Takes Input from User
+def take_user_input():
+    """Takes user input, recognizes it using Speech Recognition module and converts it into text"""
     
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
+    recognizer = sr.Recognizer()
 
-    with open(output_filename, "wb") as wf:
-        wf.write(b"".join(frames))
+    with sr.Microphone() as source:
+        print("Speak something...")
+        audio_data = recognizer.listen(source)
 
-# Specify the device index you want to use for capturing audio
-device_index = 1  # Change this to the desired device index
+        # Perform speech recognition using Google Web Speech API
+        try:
+            text = recognizer.recognize_google(audio_data, language='it')
+            print("You said:", text)
+        except sr.UnknownValueError:
+            print("Sorry, could not understand audio.")
+        except sr.RequestError as e:
+            print("Error: Could not request results from Google Speech Recognition service;")
 
-# Capture audio
-capture_audio(device_index)
+    return text
+
+
+if __name__ == '__main__':
+    while True:
+        query = take_user_input().lower()
+        #print(query)
+
+        if 'wikipedia' in query:
+            speak('What do you want to search on Wikipedia?')
+            search_query = take_user_input().lower()
+            print("search query: ", search_query)
+            results = search_on_wikipedia(search_query)
+            speak(f"According to Wikipedia, {results}")
+            speak("For your convenience, I am printing it on the screen sir.")
+            print(results)
